@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Vilarejo dos Bonequinhos + llama3</title>
+<style>
+:root{--bg:#f4f1ea;--card:#fff;--tx:#2b2a27;--mut:#7a766c;--bd:#ddd6c8}
+@media (prefers-color-scheme:dark){:root{--bg:#1d1c1a;--card:#2a2926;--tx:#eee9de;--mut:#a39e90;--bd:#3d3b36}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.4 system-ui,sans-serif}
+.w{display:flex;flex-wrap:wrap;gap:12px;padding:12px;max-width:1300px;margin:auto}.m{flex:1 1 640px;min-width:0;position:relative}
+canvas{width:100%;height:auto;border-radius:12px;border:1px solid var(--bd);display:block;cursor:grab;touch-action:none}
+#fc{position:absolute;left:10px;bottom:10px;width:min(290px,72%);display:none;background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:8px 10px;font-size:12px;box-shadow:0 4px 14px rgba(0,0,0,.25)}
+.z{position:absolute;right:10px;top:10px;display:flex;flex-direction:column;gap:4px}.z button{width:34px;padding:6px 0}
+.s{flex:1 1 280px;display:flex;flex-direction:column;gap:10px}.c{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:10px 12px}
+h1{font-size:17px;margin:0 0 2px}h3{margin:0 0 6px;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--mut)}.mut{color:var(--mut);font-size:12px}
+.bt{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+button,input{font:inherit;background:var(--card);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:6px 10px}button{cursor:pointer}
+input[type=text]{width:100%;margin-top:4px}
+.st{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;text-align:center}.st b{display:block;font-size:17px}
+.br{display:grid;grid-template-columns:60px 1fr;gap:4px 8px;align-items:center;font-size:12px}.br i{display:block;height:7px;border-radius:4px;background:var(--bd);overflow:hidden}.br u{display:block;height:100%;background:#5aa469}
+#log div{font-size:12px;padding:2px 0;border-bottom:1px dashed var(--bd)}
+</style></head><body><div class="w">
+<div class="m"><canvas id="c" width="900" height="560"></canvas>
+<div id="fc"></div>
+<div class="z"><button id="zi">＋</button><button id="zo">－</button><button id="zr">⟲</button><button id="zf" title="Seguir selecionado">🎯</button></div></div>
+<div class="s">
+<div class="c"><h1>🏡 Vilarejo dos Bonequinhos</h1><div class="mut">Roda, arrasta e pinça para dar zoom. Clique em alguém para acompanhar e conversar.</div>
+<div class="bt"><button id="bp">⏸ Pausar</button><button id="bs">Velocidade 1x</button><button id="ba">＋ Pessoa</button></div></div>
+<div class="c"><h3>🧠 Cérebro (llama3 local)</h3>
+<label><input type="checkbox" id="lo"> Usar llama3 para falas e pensamentos</label>
+<input type="text" id="lu" value="http://localhost:11434"><input type="text" id="lm" value="llama3">
+<div class="bt"><button id="lt">Testar conexão</button><span id="ls" class="mut" style="align-self:center">desligado (usa falas prontas)</span></div>
+<div class="mut" style="margin-top:6px">Inicie o Ollama com: <code>OLLAMA_ORIGINS="*" ollama serve</code></div></div>
+<div class="c"><div class="st"><div><b id="n1">0</b><span class="mut">pessoas</span></div><div><b id="n2">0</b><span class="mut">casais</span></div><div><b id="n3">0</b><span class="mut">casas</span></div><div><b id="n4">0</b><span class="mut">lojas</span></div><div><b id="n5">0</b><span class="mut">alunos</span></div><div><b id="n6">0</b><span class="mut">nasc.</span></div><div><b id="n7">0</b><span class="mut">mortes</span></div><div><b id="n8">0</b><span class="mut">ano</span></div></div></div>
+<div class="c"><h3>Selecionado</h3><div id="sel" class="mut">Clique em alguém no mapa.</div>
+<input type="text" id="ci" placeholder="Fale com ele (precisa do llama3)..."><div class="bt"><button id="cb">💬 Falar</button></div><div id="cr" class="mut" style="margin-top:6px"></div></div>
+<div class="c"><h3>Acontecimentos</h3><div id="log"></div></div>
+</div></div>
+<script>
+const $=i=>document.getElementById(i),cv=$('c'),g=cv.getContext('2d'),W=900,H=560;
+const rnd=(a,b)=>a+Math.random()*(b-a),pick=a=>a[Math.random()*a.length|0],dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y),cl=(v,a,b)=>Math.max(a,Math.min(b,v));
+const hx=s=>[1,3,5].map(i=>parseInt(s.slice(i,i+2),16));
+const SK=['#f6d2b0','#e8b88a','#c68e5f','#8d5a3b','#5c3b27'].map(hx),HR=['#1d1510','#4a2f1c','#c9a24a','#a8481f'].map(hx),CL=['#e05a5a','#4a82d4','#58b36a','#e0a93a','#9a62c9','#3fb5b0','#e07aa8'].map(hx);
+const rgb=c=>'rgb('+c.map(v=>Math.round(cl(v,0,255)))+')',mix=(p,q,w)=>p.map((v,i)=>v*w+q[i]*(1-w)+rnd(-5,5));
+const NM=['João','Pedro','Lucas','Mateus','Caio','Davi','Rafael','Tiago','Bruno','Hugo'],NF=['Maria','Ana','Júlia','Laura','Bia','Clara','Sofia','Lívia','Carla','Isis'],TR=['curioso','tímido','ambicioso','gentil','brincalhão','sério','sonhador','corajoso'];
+const SH=[{nome:'Mercado',em:'🛒',pr:3,food:50,soc:0,cost:40,c:'#d8344a'},{nome:'Padaria',em:'🥖',pr:2,food:35,soc:10,cost:30,c:'#e0a93a'},{nome:'Taverna',em:'🍺',pr:4,food:25,soc:40,cost:60,c:'#8a4fc9'},{nome:'Feira de frutas',em:'🍎',pr:1,food:25,soc:0,cost:20,c:'#58b36a'}],HT=['Cabana','Casa','Sobrado'],WC=['#d9b685','#e8d5b5','#c7d7c0','#d6c0d9','#f0e0a0'];
+const esc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+const lake={x:140,y:420,r:85};let ag=[],bush=[],tree=[],house=[],shops=[],school=null,logs=[],T=0,spd=1,paused=false,sel=null,uid=0,S={b:0,d:0},cam={x:0,y:0,z:1},fol=0;
+const ok=(x,y)=>Math.hypot(x-lake.x,y-lake.y)>lake.r+25;
+function spot(){let x,y;do{x=rnd(30,W-30);y=rnd(50,H-30)}while(!ok(x,y));return{x,y}}
+for(let i=0;i<18;i++)bush.push({...spot(),f:rnd(2,6)});for(let i=0;i<24;i++)tree.push({...spot(),w:rnd(2,6)});
+function ev(t){logs.unshift('Ano '+(T/25|0)+': '+t);logs.length=Math.min(logs.length,9);$('log').innerHTML=logs.map(l=>'<div>'+l+'</div>').join('')}
+const rem=(a,t)=>{a.mem.unshift(t);a.mem.length=Math.min(a.mem.length,5)};
+// ---------- LLM ----------
+const L={pend:0};let chain=Promise.resolve();const ls=t=>$('ls').textContent=t;
+function ask(p){if(!$('lo').checked||L.pend>=2)return Promise.resolve(null);L.pend++;
+const run=chain.then(async()=>{const r=await fetch($('lu').value.replace(/\/$/,'')+'/api/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:$('lm').value,prompt:p,stream:false,format:'json',options:{temperature:.9,num_predict:220}})});const j=await r.json();ls('🟢 llama3 respondeu');return JSON.parse(j.response)}).catch(()=>{ls('🔴 sem conexão (usando falas prontas)');return null}).finally(()=>L.pend--);chain=run;return run}
+const iqe=a=>Math.min(100,a.iq+a.learn)|0;
+const desc=a=>`${a.name} (${a.sex?'mulher':'homem'}, ${a.age|0} anos, ${a.age<16?'criança':a.age>62?'idoso(a)':'adulto(a)'}, personalidade ${a.tr.join(' e ')}, inteligência ${iqe(a)}/100, dinheiro ${a.money|0}, ${a.sp?'casado(a) com '+a.sp.name:'solteiro(a)'}, ${a.shop?'dono(a) de loja':'sem loja'}, fome ${100-a.food|0}%, sede ${100-a.water|0}%, cansaço ${100-a.energy|0}%, agora: ${a.act}, lembranças: ${a.mem.slice(0,3).join('; ')||'nenhuma'})`;
+$('lt').onclick=()=>{$('lo').checked=true;ls('testando...');ask('Responda JSON {"ok":"oi"}')};
+$('cb').onclick=async()=>{const m=$('ci').value.trim();if(!sel||!m)return;const a=sel;$('cr').textContent='...';$('ci').value='';
+const r=await ask(`Você é ${desc(a)}, vive em um vilarejo. Um observador diz: "${m}". Lugares: ${placesOf(a).map(p=>p.nome).join(', ')}. Pessoas: ${ag.filter(o=>o!==a).map(o=>o.name).join(', ')}. Responda SÓ JSON {"fala":"resposta curta de até 20 palavras","pensamento":"pensamento íntimo","acao":"ir, visitar, convidar, descansar ou nenhuma (decida se atende ao pedido)","alvo":"nome do lugar ou da pessoa","lugar":"se convidar, o lugar"} em português do Brasil, de acordo com sua idade, personalidade e inteligência.`);
+if(r){say(a,String(r.fala).slice(0,70),5);a.th=r.pensamento;$('cr').innerHTML='<b>'+a.name+':</b> '+r.fala+'<br><i>💭 '+r.pensamento+'</i>';rem(a,'Um observador me disse: '+m);const p=fromAI(a,{acao:r.acao,alvo:r.alvo,lugar:r.lugar},placesOf(a));if(p&&p!=='rest'){setPlan(a,p);$('cr').innerHTML+='<br>➜ decidiu agir: '+p.k+' '+(p.nome||p.who.name)}}else $('cr').textContent='Ligue o llama3 e teste a conexão.'};
+// ---------- pessoas ----------
+function mk(sex,age,x,y,P){const q=!!P,w=.5+(Math.random()<.5?1:-1)*rnd(.05,.2);
+const a={id:++uid,sex,age,x,y,name:pick(sex?NF:NM),food:rnd(60,100),water:rnd(60,100),energy:rnd(60,100),social:rnd(40,90),aff:{},sp:null,home:null,wood:0,say:'',sayT:0,par:q?[P[0].id,P[1].id]:[],kids:0,bcd:rnd(10,25),goal:null,wt:0,ad:age>=16,tk:null,sl:false,bd:null,act:'',money:q?0:rnd(10,30),iq:q?cl((P[0].iq+P[1].iq)/2+rnd(-8,8),5,80):rnd(30,70),learn:0,tr:[pick(TR),pick(TR)],mem:[],th:'',thT:0,shop:null,wk:0,wp:null,mv:0,plan:null,thk:false,cd:rnd(1,5),drk:0,eat:0,
+skin:q?mix(P[0].skin,P[1].skin,w):[...pick(SK)],hair:q?mix(P[0].hair,P[1].hair,w):[...pick(HR)],cl:q?mix(P[0].cl,P[1].cl,w):[...pick(CL)]};ag.push(a);return a}
+for(let i=0;i<10;i++){const s=spot();mk(i%2,rnd(17,32),s.x,s.y)}
+const say=(a,t,d=3)=>{a.say=t;a.sayT=d};
+const near=(a,arr,f)=>{let b=null,m=1e9;for(const o of arr){if(f&&!f(o))continue;const q=dist(a,o);if(q<m){m=q;b=o}}return b};
+function go(a,x,y,dt,r=4){const dx=x-a.x,dy=y-a.y,q=Math.hypot(dx,dy);if(q<r)return true;const v=(a.age<16?30:40)*(a.food<5||a.water<5?.6:1)*dt;a.x+=dx/q*v;a.y+=dy/q*v;a.x=cl(a.x,8,W-8);a.y=cl(a.y,16,H-8);a.mv=1;return false}
+const kin=(a,b)=>a.par.includes(b.id)||b.par.includes(a.id)||a.par.some(p=>b.par.includes(p)),mood=a=>(a.food+a.water+a.energy+a.social)/4;
+function talk(a,b,dest){const t={a,b,t:4,w:0,s1:0,s2:0,res:null,dest};a.tk=b.tk=t;a.goal=b.goal=null;a.sl=b.sl=false;a.plan=b.plan=null;
+ask(dest?`Simulação de vilarejo 2D. ${desc(a)} convida ${desc(b)} para ir até ${dest.nome}. Responda SÓ JSON {"a":"convite de A","b":"resposta de B","aceita":true ou false conforme personalidade, afinidade de B por A (${b.aff[a.id]|0}) e necessidades de B,"pa":"pensamento de A","pb":"pensamento de B"}. Até 12 palavras por fala, português do Brasil.`:`Simulação de vilarejo 2D. Duas pessoas conversam. A: ${desc(a)}. B: ${desc(b)}. Responda SÓ JSON {"a":"fala de A","b":"resposta de B","pa":"pensamento íntimo de A","pb":"pensamento íntimo de B"}. Falas com até 12 palavras, português do Brasil, coerentes com idade, humor, necessidades e inteligência (crianças falam simples).`).then(r=>{t.res=r||0;if(r){a.th=String(r.pa||'');b.th=String(r.pb||'');a.thT=b.thT=6}})}
+function endTalk(t){const{a,b}=t;
+if(t.dest){a.tk=b.tk=null;a.social=Math.min(100,a.social+10);b.social=Math.min(100,b.social+10);const d=t.dest;
+if(t.acc){a.plan={l:5,to:60,w:0,k:'juntos',x:d.x,y:d.y,nome:d.nome,who:b};b.plan={l:5,to:60,w:0,k:'juntos',x:d.x,y:d.y,nome:d.nome,who:a};ev('🧭 '+a.name+' e '+b.name+' vão explorar '+d.nome);rem(a,'Convidei '+b.name+' para '+d.nome+' e aceitou');rem(b,'Aceitei o convite de '+a.name+' para '+d.nome)}
+else{a.aff[b.id]=(a.aff[b.id]||0)-3;a.cd=rnd(4,8);ev(b.name+' recusou o convite de '+a.name);rem(a,b.name+' recusou meu convite para '+d.nome);rem(b,'Recusei o convite de '+a.name)}return}a.tk=b.tk=null;a.social=Math.min(100,a.social+45);b.social=Math.min(100,b.social+45);
+if(Math.random()<.12){a.aff[b.id]=(a.aff[b.id]||0)-12;b.aff[a.id]=(b.aff[a.id]||0)-12;say(a,'Que raiva! 😠');say(b,'Que grosseria! 😤');ev(a.name+' e '+b.name+' discutiram');rem(a,'Briguei com '+b.name);rem(b,'Briguei com '+a.name);return}
+const k=rnd(12,20);a.aff[b.id]=(a.aff[b.id]||0)+k;b.aff[a.id]=(b.aff[a.id]||0)+k;rem(a,'Conversei com '+b.name);rem(b,'Conversei com '+a.name);
+if(a.ad&&b.ad&&!a.sp&&!b.sp&&a.sex!==b.sex&&!kin(a,b)&&a.aff[b.id]>=55&&b.aff[a.id]>=55){a.sp=b;b.sp=a;say(a,'Quer casar comigo? 💍',4);say(b,'Sim! ❤️',4);ev('💍 '+a.name+' e '+b.name+' se casaram!');rem(a,'Casei com '+b.name);rem(b,'Casei com '+a.name);
+if(!a.home&&b.home)a.home=b.home;else if(a.home)b.home=a.home;if(a.home)a.home.o=[a,b]}}
+function wander(a,dt){a.wt-=dt;if(!a.goal||a.wt<=0){a.goal=spot();a.wt=rnd(3,7)}if(go(a,a.goal.x,a.goal.y,dt,5))a.wt=0}
+function placesOf(a){const P=[{nome:'o lago',x:lake.x+95,y:lake.y-30},{nome:'o centro do vilarejo',x:W/2,y:H/2},{nome:'os arbustos',x:pick(bush).x,y:pick(bush).y},{nome:'a floresta',x:pick(tree).x,y:pick(tree).y},{nome:'a região norte',x:rnd(150,750),y:60},{nome:'a região sul',x:rnd(300,800),y:H-40},{nome:'a região leste',x:W-50,y:rnd(100,500)},{nome:'a região oeste',x:40,y:rnd(80,300)}];
+if(school)P.push({nome:'a escola',x:school.x,y:school.y+34});for(const s of shops)P.push({nome:'a loja de '+s.owner.name,x:s.x,y:s.y+18});
+for(const h of house)if(h.o[0]&&!h.o.includes(a))P.push({nome:'a casa de '+h.o[0].name,x:h.x,y:h.y+18});return P}
+function inviteOk(b,a){const p=.6+((b.aff[a.id]||0)>=20?.25:0)-(b.tr.includes('tímido')?.2:0)+(b.tr.includes('curioso')?.15:0)-(b.food<40||b.water<40||b.energy<30?.4:0);return Math.random()<p}
+function setPlan(a,p){a.plan={l:rnd(4,7),to:60,w:0,...p};a.cd=0;if(p.k==='ir'&&!a.say)say(a,'Vou para '+p.nome,2.5)}
+function heur(a,pl,oth){const fr=[...oth].sort((p,q)=>(a.aff[q.id]||0)-(a.aff[p.id]||0))[0],r=Math.random(),sh=a.tr.includes('tímido');
+if(fr&&r<(sh?.2:.45))return r<(sh?.1:.2)?{k:'visitar',who:fr}:{k:'convidar',who:fr,dest:pick(pl)};
+const pref=a.tr.includes('sonhador')?pl.filter(p=>p.nome=='o lago'):a.tr.includes('ambicioso')?pl.filter(p=>/loja|escola|centro/.test(p.nome)):(a.tr.includes('curioso')||a.tr.includes('corajoso'))?pl.filter(p=>/região/.test(p.nome)):[];
+return{k:'ir',...pick(pref.length&&Math.random()<.6?pref:pl)}}
+function fromAI(a,r,pl){const low=s=>String(s||'').toLowerCase(),find=n=>pl.find(p=>low(n).includes(low(p.nome).replace(/^(o|a|os|as) /,''))),per=n=>ag.find(o=>o!==a&&low(n).includes(low(o.name)));
+if(r.fala)say(a,String(r.fala).slice(0,70),3.5);if(r.pensamento){a.th=String(r.pensamento);a.thT=6}
+const ac=low(r.acao);if(ac.startsWith('desc'))return'rest';
+if(ac.startsWith('vis')){const w=per(r.alvo);if(w)return{k:'visitar',who:w}}
+if(ac.startsWith('conv')){const w=per(r.alvo);if(w)return{k:'convidar',who:w,dest:find(r.lugar)||pick(pl)}}
+if(ac.startsWith('ir')){const d=find(r.alvo);if(d)return{k:'ir',...d}}return null}
+function decide(a){a.thk=true;const pl=placesOf(a),oth=ag.filter(o=>o!==a&&o.age>=6);
+ask(`Simulação de vilarejo 2D. Você é ${desc(a)}. Lugares: ${pl.map(p=>p.nome).join(', ')}. Pessoas: ${oth.map(o=>o.name+' (afinidade '+(a.aff[o.id]|0)+')').join(', ')||'ninguém'}. O que quer fazer agora? Responda SÓ JSON {"acao":"ir, visitar, convidar ou descansar","alvo":"nome do lugar (ir) ou da pessoa (visitar/convidar)","lugar":"se convidar, aonde explorar juntos","fala":"fala curta ou vazio","pensamento":"pensamento íntimo"}. Português do Brasil.`).then(r=>{a.thk=false;if(!ag.includes(a))return;let p=r?fromAI(a,r,pl):null;if(!p)p=heur(a,pl,oth);if(p==='rest'){a.cd=rnd(4,8);return}setPlan(a,p)})}
+function idle(a,dt){const p=a.plan;
+if(!p){if(a.thk){a.act='pensando';return}a.cd-=dt;if(a.cd>0){a.act='descansando';return}decide(a);return}
+p.to-=dt;if(p.to<=0||(p.who&&!ag.includes(p.who))){a.plan=null;a.cd=rnd(2,4);return}
+if(p.k==='ir'||p.k==='juntos'){a.act=(p.k==='juntos'?'explorando com '+p.who.name+': ':'indo para ')+p.nome;
+if(go(a,p.x+(a.id%3-1)*10,p.y+(a.id%2)*8,dt,6)){a.act='explorando '+p.nome;p.l-=dt;if(p.l<=0){if(p.k==='juntos'){a.aff[p.who.id]=(a.aff[p.who.id]||0)+10;a.social=Math.min(100,a.social+25);rem(a,'Explorei '+p.nome+' com '+p.who.name);say(a,pick(['Foi divertido! 😄','Que passeio bom!','Adorei explorar juntos!']),3)}else rem(a,'Fui até '+p.nome);a.plan=null;a.cd=rnd(3,7)}}return}
+a.act=(p.dest?'convidando ':'visitando ')+p.who.name;
+if(go(a,p.who.x,p.who.y,dt,20)){if(!p.who.tk&&!p.who.sl&&!p.who.bd){a.plan=null;talk(a,p.who,p.dest)}else{p.w+=dt;if(p.w>10){a.plan=null;a.cd=3}}}}
+function think(a,dt){const ad=a.age>=16;
+if(ad&&!a.ad){a.ad=true;a.home=null;ev('🎂 '+a.name+' virou adulto(a)')}
+if(a.tk){if(a.tk.a!==a)return;const t=a.tk;if($('lo').checked&&t.res===null&&t.w<12){t.w+=dt;return}t.t-=dt;const R=t.res||{};
+if(!t.s1){t.s1=1;if(t.dest){t.acc=R.aceita!==undefined?(R.aceita===true||R.aceita==='true'):inviteOk(t.b,t.a);t.rb=t.acc?pick(['Bora!','Vamos sim!','Claro, vamos!']):pick(['Hoje não, obrigado(a).','Agora não posso...'])}say(t.a,String(R.a||(t.dest?'Vamos explorar '+t.dest.nome+'?':0)||pick(['Oi! Tudo bem?','Olá, vizinho(a)!','E aí, como vai?',t.a.food<45?'Estou com fome...':'Bom dia!'])).slice(0,70),2.5)}
+if(t.t<2.2&&!t.s2){t.s2=1;say(t.b,String(R.b||t.rb||pick(['Achei frutinhas ali!','O lago está lindo hoje.','Quero uma casa maior.','Sonhei com a lua.','Que dia bonito!','Vamos explorar juntos?'])).slice(0,70),2.5)}
+if(t.t<=0)endTalk(t);return}
+if(a.sl){a.act='dormindo';a.energy+=(a.inH?16:9)*dt;if(a.energy>=96||a.water<8||a.food<8){a.sl=false;a.inH=false}return}
+if(a.bd){a.act='construindo';a.bd.t-=dt;if(a.bd.t<=0){const h={x:a.bd.x,y:a.bd.y,o:[a],t:a.bd.ty,c:pick(WC)};if(a.sp){h.o.push(a.sp);a.sp.home=h}a.home=h;house.push(h);a.bd=null;a.wood=0;ev('🏠 '+a.name+' construiu: '+HT[h.t]);rem(a,'Construí minha casa');say(a,'Casa nova! 🏠')}return}
+if(a.water<35)a.drk=1;if(a.water>=92)a.drk=0;if(a.food<40)a.eat=1;if(a.food>=85)a.eat=0;
+if(a.drk){a.act='com sede';const an=Math.atan2(a.y-lake.y,a.x-lake.x);if(go(a,lake.x+Math.cos(an)*(lake.r+7),lake.y+Math.sin(an)*(lake.r+7),dt,5)){a.act='bebendo';a.water=Math.min(100,a.water+45*dt)}else if(a.sayT<=0&&Math.random()<.01)say(a,'Estou com sede 💧',2)}
+else if(a.eat){const s=near(a,shops,o=>o.t.pr<=a.money||o.owner===a);
+if(s){a.act='indo ao mercado';if(go(a,s.x,s.y+14,dt,8)){if(s.owner!==a){a.money-=s.t.pr;s.owner.money+=s.t.pr}a.food=Math.min(100,a.food+s.t.food);a.social=Math.min(100,a.social+s.t.soc);say(a,'Comprei! '+s.t.em,2.5);rem(a,'Comprei em '+s.t.nome+' ('+s.owner.name+')')}}
+else{const b=near(a,bush,o=>o.f>1);if(b){a.act='comendo';if(go(a,b.x,b.y,dt,7)){b.f-=1.3*dt;a.food=Math.min(100,a.food+28*dt)}else if(a.sayT<=0&&Math.random()<.01)say(a,'Que fome... 🍓',2)}else wander(a,dt)}}
+else if(a.energy<22){a.act='com sono';if(a.home){if(go(a,a.home.x,a.home.y+14,dt,6)){a.sl=true;a.inH=true}}else{a.sl=true;a.inH=false}}
+else if(a.social<45){a.act='quer conversar';const b=(a.sp&&!a.sp.tk&&!a.sp.sl&&!a.sp.bd)?a.sp:near(a,ag,o=>o!==a&&!o.tk&&!o.sl&&!o.bd);if(b){if(go(a,b.x,b.y,dt,20)&&!b.tk)talk(a,b)}else wander(a,dt)}
+else if(ad&&!a.home&&a.food>40&&a.water>40){if(a.wood<4){a.act='cortando lenha';const t=near(a,tree,o=>o.w>1);if(t){if(go(a,t.x,t.y,dt,7)){t.w-=1.2*dt;a.wood+=1.2*dt}}else wander(a,dt)}
+else{let x=a.x+rnd(-20,20),y=a.y+rnd(-20,20);if(!ok(x,y)){x=a.x+60;y=a.y}const ty=a.money>=80?2:a.money>=30?1:0;a.money-=[0,30,80][ty];a.bd={t:6+ty*3,T:6+ty*3,ty,x:cl(x,30,W-30),y:cl(y,50,H-30)}}}
+else if(a.age>=6&&a.age<16&&school&&a.energy>30){a.act='indo à escola';if(go(a,school.x+(a.id%5-2)*9,school.y+26+(a.id%3)*6,dt,3)){a.act='estudando';a.learn=Math.min(40,a.learn+.8*dt)}}
+else if(ad&&a.home&&!school&&a.money>=50){let x,y,n=0;do{x=W/2+rnd(-120,120);y=H/2+rnd(-80,60)}while(!ok(x,y)&&n++<20);a.money-=50;school={x,y};ev('🏫 '+a.name+' construiu a escola!');rem(a,'Construí a escola do vilarejo');say(a,'Escola nova! 🏫',4)}
+else if(ad&&a.home&&!a.shop&&a.money>=20&&shops.length<Math.max(1,ag.length/4|0)){let x=a.home.x+rnd(30,50),y=a.home.y+rnd(-20,20);if(!ok(x,y)||x>W-30)x=a.home.x-40;const ty=a.tr.includes('brincalhão')&&a.money>=60?SH[2]:pick(SH.filter(t=>t.cost<=a.money));a.money-=ty.cost;a.shop={x:cl(x,30,W-30),y:cl(y,50,H-30),owner:a,t:ty};shops.push(a.shop);ev(ty.em+' '+a.name+' abriu: '+ty.nome);rem(a,'Abri minha loja: '+ty.nome);say(a,ty.nome+' aberta! '+ty.em,4)}
+else if(ad&&a.age<62&&a.home&&(a.money<70||!a.shop)){a.act='trabalhando';if(!a.wp)a.wp=spot();if(go(a,a.wp.x,a.wp.y,dt,5)){a.wk+=dt;if(a.wk>=6){a.money+=20*(1+iqe(a)/100);a.wk=0;a.wp=null;say(a,'Recebi 💰',2)}}}
+else{if(!ad){const p=ag.find(o=>a.par.includes(o.id));if(p){a.act='com os pais';if(dist(a,p)>50)go(a,p.x,p.y,dt,40);return}}idle(a,dt)}}
+function step(dt){T+=dt;
+for(const a of ag){a.mv=0;a.age+=dt/25;const k=a.sl?.4:1;a.food=Math.max(0,a.food-1.5*dt*k);a.water=Math.max(0,a.water-2*dt*k);if(!a.sl)a.energy=Math.max(0,a.energy-.9*dt);if(!a.tk)a.social=Math.max(0,a.social-.8*dt);
+a.sayT-=dt;a.thT-=dt;if(a.sayT<=0)a.say='';think(a,dt);
+if(Math.hypot(a.x-lake.x,a.y-lake.y)<lake.r+3&&a.act!=='bebendo'){const an=Math.atan2(a.y-lake.y,a.x-lake.x);a.x=lake.x+Math.cos(an)*(lake.r+4);a.y=lake.y+Math.sin(an)*(lake.r+4)}
+if(a.sex&&a.sp&&a.age<46&&a.sp.sex===0){a.bcd-=dt;if(a.bcd<=0&&a.kids<4&&a.food>45&&a.water>45){a.bcd=rnd(30,50);a.kids++;a.sp.kids++;const h=a.home||a,c=mk(Math.random()<.5?1:0,0,h.x,h.y+16,[a,a.sp]);c.home=a.home;S.b++;ev('👶 '+c.name+' nasceu (filho(a) de '+a.name+' e '+a.sp.name+')');rem(a,'Tive um filho: '+c.name);rem(a.sp,'Tive um filho: '+c.name);say(a,'É '+(c.sex?'uma menina':'um menino')+'! 👶',4)}}}
+for(const b of bush)b.f=Math.min(6,b.f+.15*dt);for(const t of tree)t.w=Math.min(6,t.w+.08*dt);
+for(let i=ag.length-1;i>=0;i--){const a=ag[i];if(a.age>68&&Math.random()<(a.age-68)*.0012*dt||a.age>95){ag.splice(i,1);S.d++;const sp=a.sp;if(sp){sp.sp=null;say(sp,'Que saudade... 😢',5);rem(sp,'Perdi meu(minha) esposo(a) '+a.name)}if(sel===a)sel=null;ev('🕊 '+a.name+' morreu de velhice aos '+(a.age|0)+' anos');
+if(a.shop){if(sp&&!sp.shop){sp.shop=a.shop;a.shop.owner=sp}else shops.splice(shops.indexOf(a.shop),1)}for(const h of house)h.o=h.o.filter(o=>o!==a)}}
+for(let i=house.length-1;i>=0;i--)if(!ag.some(o=>o.home===house[i]))house.splice(i,1)}
+// ---------- desenho ----------
+function person(a){const m=mood(a),k=1.35*Math.min(1,.4+a.age*.033),sw=a.mv?Math.sin(T*10+a.id)*3:0,sk=rgb(a.skin),hr=a.age>62?'#e6e6e6':rgb(a.hair),cc=rgb(a.cl);
+g.save();g.translate(a.x,a.y);g.scale(k,k);g.fillStyle='rgba(0,0,0,.18)';g.beginPath();g.ellipse(0,1,8,3,0,0,7);g.fill();
+g.fillStyle=sk;g.fillRect(-4+sw*.4,-10,3,10);g.fillRect(1-sw*.4,-10,3,10);g.fillRect(-8,-21,3,9);g.fillRect(5,-21,3,9);
+g.fillStyle=cc;if(a.sex){g.beginPath();g.moveTo(-4,-22);g.lineTo(4,-22);g.lineTo(8,-8);g.lineTo(-8,-8);g.fill()}else{g.fillRect(-5,-22,10,12);g.fillStyle='#3d4a6b';g.fillRect(-5,-11,10,5)}
+g.fillStyle=sk;g.beginPath();g.arc(0,-28,6,0,7);g.fill();g.fillStyle=hr;g.beginPath();g.arc(0,-29,6.3,Math.PI,0);g.fill();
+if(a.sex){g.fillRect(-7,-30,3,13);g.fillRect(4,-30,3,13);g.fillStyle='#ff7aa8';g.beginPath();g.arc(0,-35,2,0,7);g.fill()}else g.fillRect(-6,-30,12,2);
+g.fillStyle='#222';g.strokeStyle='#222';g.lineWidth=1;if(a.sl){g.fillRect(-3.5,-28,2.5,1);g.fillRect(1,-28,2.5,1)}else{g.fillRect(-3,-28.5,1.5,1.8);g.fillRect(1.5,-28.5,1.5,1.8)}
+g.beginPath();if(m>62)g.arc(0,-26.5,2.5,.1,Math.PI-.1);else if(m>38){g.moveTo(-2,-24.5);g.lineTo(2,-24.5)}else g.arc(0,-23.5,2.5,Math.PI+.2,-.2);g.stroke();g.restore();
+if(a===sel){g.strokeStyle='#ffd23f';g.lineWidth=2;g.beginPath();g.ellipse(a.x,a.y,12,5,0,0,7);g.stroke()}
+g.font='9px system-ui';g.textAlign='center';g.fillStyle='rgba(0,0,0,.7)';g.fillText((a.sp?'♥ ':'')+a.name,a.x,a.y+11);
+const top=a.y-38*k-6;if(a.thT>0){g.font='11px sans-serif';g.fillText('💭',a.x+10,top)}
+if(a.sl&&!a.inH){g.font='11px sans-serif';g.fillText('💤',a.x+10,top)}
+if(a.say){g.font='11px system-ui';const w=g.measureText(a.say).width+12;g.fillStyle='rgba(255,255,255,.96)';g.beginPath();g.roundRect(a.x-w/2,top-18,w,17,6);g.fill();g.fillStyle='#222';g.fillText(a.say,a.x,top-6)}}
+function drawHouse(h){const{x,y}=h;
+if(h.t===0){g.fillStyle='#b98f58';g.fillRect(x-10,y-4,20,14);g.fillStyle='#8a6a3b';g.beginPath();g.moveTo(x-15,y-4);g.lineTo(x,y-18);g.lineTo(x+15,y-4);g.fill();g.fillStyle='#4a321a';g.fillRect(x-2,y+3,4,7)}
+else if(h.t===1){g.fillStyle=h.c;g.fillRect(x-14,y-8,28,20);g.fillStyle='#a8452f';g.beginPath();g.moveTo(x-18,y-8);g.lineTo(x,y-24);g.lineTo(x+18,y-8);g.fill();g.fillRect(x+6,y-24,5,10);g.fillStyle='#6b4a2b';g.fillRect(x-3,y+2,6,10);g.fillStyle='#9fd3ee';g.fillRect(x+6,y-3,5,5)}
+else{g.fillStyle=h.c;g.fillRect(x-16,y-22,32,34);g.fillStyle='#3d4a6b';g.beginPath();g.moveTo(x-20,y-22);g.lineTo(x,y-38);g.lineTo(x+20,y-22);g.fill();g.fillStyle='#9fd3ee';for(const[dx,dy]of[[-11,-16],[5,-16],[-11,-5],[5,-5]])g.fillRect(x+dx,y+dy,6,6);g.fillStyle='#6b4a2b';g.fillRect(x-3,y+2,6,10)}}
+function statusCard(a){const bar=(l,v,c)=>`<span>${l}</span><i><u style="width:${v|0}%;${c?'background:'+c:''}"></u></i>`,m=mood(a),
+fr=Object.entries(a.aff).map(([id,v])=>[ag.find(o=>o.id==id),v]).filter(x=>x[0]&&x[1]>0).sort((p,q)=>q[1]-p[1]).slice(0,3).map(x=>x[0].name+' ('+(x[1]|0)+')').join(', ')||'ninguém ainda';
+const h=`<b>${a.name}</b> ${a.sex?'♀':'♂'} · ${a.age|0} anos · ${a.age<16?'criança':a.age>62?'idoso(a)':'adulto(a)'}
+<div class="mut">Humor ${m>62?'😊 bom':m>38?'😐 normal':'😟 ruim'} (${m|0}%) · ${a.tr.join(', ')}</div>
+<div class="br" style="margin:6px 0">${bar('Comida',a.food)}${bar('Água',a.water)}${bar('Energia',a.energy)}${bar('Social',a.social)}${bar('Intelig.',iqe(a),'#6a8fd8')}</div>
+<div class="mut">💰 ${a.money|0} · 🏠 ${a.home?HT[a.home.t]:'sem casa'} · ${a.shop?a.shop.t.em+' '+a.shop.t.nome:'sem loja'} · ${a.age>=6&&a.age<16?'🎒 estudante':a.age<6?'👶 pequeno(a)':a.age>62?'🪑 aposentado(a)':'💼 '+(a.shop?'comerciante':'trabalhador(a)')}</div>
+<div class="mut">${a.sp?'💍 casado(a) com '+a.sp.name:'solteiro(a)'} · ${a.kids} filho(s) · 🤝 ${fr}</div>
+<div class="mut">Agora: <b>${a.tk?'conversando':a.act}</b></div>${a.th?`<div class="mut">💭 <i>${esc(a.th)}</i></div>`:''}<div class="mut">Memórias: ${esc(a.mem.join(' · ')||'—')}</div>`;
+$('sel').innerHTML=h;const f=$('fc');f.style.display='block';f.innerHTML='<button id="fx" style="float:right;padding:0 6px">×</button>'+h;$('fx').onclick=()=>{sel=null;ui()}}
+function draw(){g.setTransform(1,0,0,1,0,0);g.clearRect(0,0,W,H);g.setTransform(cam.z,0,0,cam.z,cam.x,cam.y);
+const gr=g.createLinearGradient(0,0,0,H);gr.addColorStop(0,'#8fc47a');gr.addColorStop(1,'#78b068');g.fillStyle=gr;g.fillRect(0,0,W,H);
+g.fillStyle='#5b9fd6';g.beginPath();g.arc(lake.x,lake.y,lake.r,0,7);g.fill();g.strokeStyle='#a9d4f0';g.lineWidth=3;g.stroke();
+for(const t of tree){g.fillStyle='#6b4a2b';g.fillRect(t.x-2,t.y-2,4,10);g.fillStyle=t.w>1?'#2f7a3a':'#6a9a5a';g.beginPath();g.arc(t.x,t.y-8,8+t.w,0,7);g.fill()}
+for(const b of bush){g.fillStyle='#3f8f4a';g.beginPath();g.arc(b.x,b.y,8,0,7);g.fill();g.fillStyle='#d8344a';for(let i=0;i<Math.min(5,b.f|0);i++){g.beginPath();g.arc(b.x+Math.cos(i*1.9)*4.5,b.y+Math.sin(i*1.9)*4.5,2,0,7);g.fill()}}
+g.textAlign='center';
+if(school){const s=school;g.fillStyle='#e8d9b0';g.fillRect(s.x-28,s.y-12,56,34);g.fillStyle='#3d6fb5';g.beginPath();g.moveTo(s.x-33,s.y-12);g.lineTo(s.x,s.y-34);g.lineTo(s.x+33,s.y-12);g.fill();g.fillStyle='#6b4a2b';g.fillRect(s.x-5,s.y+6,10,16);g.font='12px sans-serif';g.fillText('🏫',s.x,s.y-38)}
+for(const h of house){drawHouse(h);if(ag.some(a=>a.sl&&a.inH&&a.home===h)){g.font='12px sans-serif';g.fillText('💤',h.x+12,h.y-26)}}
+for(const s of shops){const w=s.t.nome==='Taverna'?20:14;g.fillStyle='#8a6a43';g.fillRect(s.x-w,s.y-4,w*2,14);for(let i=0;i<4;i++){g.fillStyle=i%2?'#fff':s.t.c;g.fillRect(s.x-w-2+i*(w/2),s.y-12,w/2,8)}g.font='8px system-ui';g.fillStyle='rgba(0,0,0,.7)';g.fillText(s.t.em+' '+s.t.nome+' · '+s.owner.name,s.x,s.y+20)}
+for(const a of[...ag].sort((p,q)=>p.y-q.y)){if(a.sl&&a.inH)continue;if(a.bd){g.fillStyle='#d9b685';g.globalAlpha=.5;g.fillRect(a.bd.x-14,a.bd.y-8,28,20);g.globalAlpha=1;g.fillStyle='#333';g.fillRect(a.bd.x-14,a.bd.y+14,28*(1-a.bd.t/a.bd.T),3)}person(a)}}
+function ui(){$('n1').textContent=ag.length;$('n2').textContent=ag.filter(a=>a.sp&&a.sex).length;$('n3').textContent=house.length;$('n4').textContent=shops.length;$('n5').textContent=ag.filter(a=>a.act==='estudando').length;$('n6').textContent=S.b;$('n7').textContent=S.d;$('n8').textContent=T/25|0;
+if(!sel){$('sel').innerHTML='Clique em alguém no mapa.';$('fc').style.display='none';return}statusCard(sel);return;const a=sel,bar=(l,v)=>'<span>'+l+'</span><i><u style="width:'+v+'%"></u></i>';
+$('sel').innerHTML='<b>'+a.name+'</b> '+(a.sex?'♀':'♂')+' · '+(a.age|0)+' anos · '+(a.age<16?'criança':a.age>62?'idoso(a)':'adulto(a)')+'<div class="mut">'+a.tr.join(', ')+' · '+(a.sp?'casado(a) com '+a.sp.name:'solteiro(a)')+' · '+a.kids+' filho(s)</div><div class="mut">💰 '+(a.money|0)+' · 🎓 inteligência '+iqe(a)+(a.shop?' · 🛒 dono(a) de loja':'')+'</div><div class="mut" style="margin-bottom:6px">Agora: '+(a.tk?'conversando':a.act)+'</div><div class="br">'+bar('Comida',a.food)+bar('Água',a.water)+bar('Energia',a.energy)+bar('Social',a.social)+'</div>'+(a.th?'<div class="mut" style="margin-top:6px">💭 <i>'+a.th+'</i></div>':'')+'<div class="mut" style="margin-top:4px">Memórias: '+(a.mem.join(' · ')||'—')+'</div>'}
+// ---------- câmera ----------
+const clamp=()=>{cam.x=cl(cam.x,W-W*cam.z,0);cam.y=cl(cam.y,H-H*cam.z,0)};
+function zoomAt(cx,cy,f){const nz=cl(cam.z*f,1,5);cam.x=cx-(cx-cam.x)*nz/cam.z;cam.y=cy-(cy-cam.y)*nz/cam.z;cam.z=nz;clamp()}
+const Pm=new Map();let drag=0,pd=0;
+cv.addEventListener('pointerdown',e=>{cv.setPointerCapture(e.pointerId);Pm.set(e.pointerId,{x:e.clientX,y:e.clientY});if(Pm.size==1){drag=0;pd=0}});
+cv.addEventListener('pointermove',e=>{const p=Pm.get(e.pointerId);if(!p)return;const r=cv.getBoundingClientRect(),k=W/r.width;
+if(Pm.size==2){const o=[...Pm.entries()].find(([i])=>i!==e.pointerId)[1],d0=Math.hypot(p.x-o.x,p.y-o.y);p.x=e.clientX;p.y=e.clientY;zoomAt(((p.x+o.x)/2-r.left)*k,((p.y+o.y)/2-r.top)*k,Math.hypot(p.x-o.x,p.y-o.y)/d0);drag=1;return}
+pd+=Math.abs(e.clientX-p.x)+Math.abs(e.clientY-p.y);if(pd>6){drag=1;fol=0;cam.x+=(e.clientX-p.x)*k;cam.y+=(e.clientY-p.y)*k;clamp()}p.x=e.clientX;p.y=e.clientY});
+cv.addEventListener('pointerup',e=>{Pm.delete(e.pointerId);if(!drag&&Pm.size==0){const r=cv.getBoundingClientRect(),x=((e.clientX-r.left)*W/r.width-cam.x)/cam.z,y=((e.clientY-r.top)*H/r.height-cam.y)/cam.z;let b=null,m=24;for(const a of ag){const q=Math.hypot(a.x-x,a.y-14-y);if(q<m){m=q;b=a}}sel=b;$('cr').textContent='';ui()}});
+cv.addEventListener('pointercancel',e=>Pm.delete(e.pointerId));
+cv.addEventListener('wheel',e=>{e.preventDefault();const r=cv.getBoundingClientRect();zoomAt((e.clientX-r.left)*W/r.width,(e.clientY-r.top)*H/r.height,e.deltaY<0?1.15:.87)},{passive:false});
+$('zi').onclick=()=>zoomAt(W/2,H/2,1.3);$('zo').onclick=()=>zoomAt(W/2,H/2,.77);$('zr').onclick=()=>{fol=0;cam={x:0,y:0,z:1}};$('zf').onclick=()=>{if(sel)fol=!fol};
+$('bp').onclick=()=>{paused=!paused;$('bp').textContent=paused?'▶ Continuar':'⏸ Pausar'};
+$('bs').onclick=()=>{spd=spd===1?2:spd===2?4:1;$('bs').textContent='Velocidade '+spd+'x'};
+$('ba').onclick=()=>{const s=spot(),a=mk(Math.random()<.5?1:0,rnd(18,28),s.x,s.y);ev('➕ '+a.name+' chegou ao vilarejo')};
+let last=performance.now(),ut=0;
+function loop(n){const dt=Math.min(.05,(n-last)/1000);last=n;if(!paused)for(let i=0;i<spd;i++)step(dt);if(fol&&sel){cam.z=Math.max(cam.z,2.5);cam.x=W/2-sel.x*cam.z;cam.y=H/2-sel.y*cam.z;clamp()}draw();ut+=dt;if(ut>.25){ut=0;ui()}requestAnimationFrame(loop)}
+requestAnimationFrame(loop);ev('O vilarejo começou com 10 moradores');
+</script></body></html>

@@ -62,7 +62,7 @@ const r=await ask(`Você é ${desc(a)}, vive em um vilarejo. Um observador diz: 
 if(r){say(a,String(r.fala).slice(0,70),5);a.th=r.pensamento;$('cr').innerHTML='<b>'+a.name+':</b> '+r.fala+'<br><i>💭 '+r.pensamento+'</i>';rem(a,'Um observador me disse: '+m);const p=fromAI(a,{acao:r.acao,alvo:r.alvo,lugar:r.lugar},placesOf(a));if(p&&p!=='rest'){setPlan(a,p);$('cr').innerHTML+='<br>➜ decidiu agir: '+p.k+' '+(p.nome||p.who.name)}}else $('cr').textContent='Ligue o llama3 e teste a conexão.'};
 // ---------- pessoas ----------
 function mk(sex,age,x,y,P){const q=!!P,w=.5+(Math.random()<.5?1:-1)*rnd(.05,.2);
-const a={id:++uid,sex,age,x,y,name:pick(sex?NF:NM),food:rnd(60,100),water:rnd(60,100),energy:rnd(60,100),social:rnd(40,90),aff:{},sp:null,home:null,wood:0,say:'',sayT:0,par:q?[P[0].id,P[1].id]:[],kids:0,bcd:rnd(10,25),goal:null,wt:0,ad:age>=16,tk:null,sl:false,bd:null,act:'',money:q?0:rnd(10,30),iq:q?cl((P[0].iq+P[1].iq)/2+rnd(-8,8),5,80):rnd(30,70),learn:0,tr:[pick(TR),pick(TR)],mem:[],th:'',thT:0,shop:null,wk:0,wp:null,mv:0,plan:null,thk:false,cd:rnd(1,5),drk:0,eat:0,
+const a={id:++uid,sex,age,x,y,name:pick(sex?NF:NM),food:rnd(60,100),water:rnd(60,100),energy:rnd(60,100),social:rnd(40,90),aff:{},sp:null,home:null,wood:0,say:'',sayT:0,par:q?[P[0].id,P[1].id]:[],kids:0,bcd:rnd(8,18),goal:null,wt:0,ad:age>=16,tk:null,sl:false,bd:null,act:'',money:q?0:rnd(10,30),iq:q?cl((P[0].iq+P[1].iq)/2+rnd(-8,8),5,80):rnd(30,70),learn:0,tr:[pick(TR),pick(TR)],mem:[],th:'',thT:0,shop:null,wk:0,wp:null,mv:0,plan:null,thk:false,cd:rnd(1,5),drk:0,eat:0,wcd:0,
 skin:q?mix(P[0].skin,P[1].skin,w):[...pick(SK)],hair:q?mix(P[0].hair,P[1].hair,w):[...pick(HR)],cl:q?mix(P[0].cl,P[1].cl,w):[...pick(CL)]};ag.push(a);return a}
 for(let i=0;i<10;i++){const s=spot();mk(i%2,rnd(17,32),s.x,s.y)}
 const say=(a,t,d=3)=>{a.say=t;a.sayT=d};
@@ -71,13 +71,14 @@ function go(a,x,y,dt,r=4){const dx=x-a.x,dy=y-a.y,q=Math.hypot(dx,dy);if(q<r)ret
 const kin=(a,b)=>a.par.includes(b.id)||b.par.includes(a.id)||a.par.some(p=>b.par.includes(p)),mood=a=>(a.food+a.water+a.energy+a.social)/4;
 function talk(a,b,dest){const t={a,b,t:4,w:0,s1:0,s2:0,res:null,dest};a.tk=b.tk=t;a.goal=b.goal=null;a.sl=b.sl=false;a.plan=b.plan=null;
 ask(dest?`Simulação de vilarejo 2D. ${desc(a)} convida ${desc(b)} para ir até ${dest.nome}. Responda SÓ JSON {"a":"convite de A","b":"resposta de B","aceita":true ou false conforme personalidade, afinidade de B por A (${b.aff[a.id]|0}) e necessidades de B,"pa":"pensamento de A","pb":"pensamento de B"}. Até 12 palavras por fala, português do Brasil.`:`Simulação de vilarejo 2D. Duas pessoas conversam. A: ${desc(a)}. B: ${desc(b)}. Responda SÓ JSON {"a":"fala de A","b":"resposta de B","pa":"pensamento íntimo de A","pb":"pensamento íntimo de B"}. Falas com até 12 palavras, português do Brasil, coerentes com idade, humor, necessidades e inteligência (crianças falam simples).`).then(r=>{t.res=r||0;if(r){a.th=String(r.pa||'');b.th=String(r.pb||'');a.thT=b.thT=6}})}
+function tryMarry(a,b){if(a.ad&&b.ad&&!a.sp&&!b.sp&&a.sex!==b.sex&&!kin(a,b)&&(a.aff[b.id]||0)>=40&&(b.aff[a.id]||0)>=40){a.sp=b;b.sp=a;say(a,'Quer casar comigo? 💍',4);say(b,'Sim! ❤️',4);ev('💍 '+a.name+' e '+b.name+' se casaram!');rem(a,'Casei com '+b.name);rem(b,'Casei com '+a.name);if(!a.home&&b.home)a.home=b.home;else if(a.home)b.home=a.home;if(a.home)a.home.o=[a,b]}}
 function endTalk(t){const{a,b}=t;
 if(t.dest){a.tk=b.tk=null;a.social=Math.min(100,a.social+10);b.social=Math.min(100,b.social+10);const d=t.dest;
-if(t.acc){a.plan={l:5,to:60,w:0,k:'juntos',x:d.x,y:d.y,nome:d.nome,who:b};b.plan={l:5,to:60,w:0,k:'juntos',x:d.x,y:d.y,nome:d.nome,who:a};ev('🧭 '+a.name+' e '+b.name+' vão explorar '+d.nome);rem(a,'Convidei '+b.name+' para '+d.nome+' e aceitou');rem(b,'Aceitei o convite de '+a.name+' para '+d.nome)}
+if(t.acc){a.aff[b.id]=(a.aff[b.id]||0)+12;b.aff[a.id]=(b.aff[a.id]||0)+12;tryMarry(a,b);a.plan={l:5,to:60,w:0,k:'juntos',x:d.x,y:d.y,nome:d.nome,who:b};b.plan={l:5,to:60,w:0,k:'juntos',x:d.x,y:d.y,nome:d.nome,who:a};ev('🧭 '+a.name+' e '+b.name+' vão explorar '+d.nome);rem(a,'Convidei '+b.name+' para '+d.nome+' e aceitou');rem(b,'Aceitei o convite de '+a.name+' para '+d.nome)}
 else{a.aff[b.id]=(a.aff[b.id]||0)-3;a.cd=rnd(4,8);ev(b.name+' recusou o convite de '+a.name);rem(a,b.name+' recusou meu convite para '+d.nome);rem(b,'Recusei o convite de '+a.name)}return}a.tk=b.tk=null;a.social=Math.min(100,a.social+45);b.social=Math.min(100,b.social+45);
 if(Math.random()<.12){a.aff[b.id]=(a.aff[b.id]||0)-12;b.aff[a.id]=(b.aff[a.id]||0)-12;say(a,'Que raiva! 😠');say(b,'Que grosseria! 😤');ev(a.name+' e '+b.name+' discutiram');rem(a,'Briguei com '+b.name);rem(b,'Briguei com '+a.name);return}
 const k=rnd(12,20);a.aff[b.id]=(a.aff[b.id]||0)+k;b.aff[a.id]=(b.aff[a.id]||0)+k;rem(a,'Conversei com '+b.name);rem(b,'Conversei com '+a.name);
-if(a.ad&&b.ad&&!a.sp&&!b.sp&&a.sex!==b.sex&&!kin(a,b)&&a.aff[b.id]>=55&&b.aff[a.id]>=55){a.sp=b;b.sp=a;say(a,'Quer casar comigo? 💍',4);say(b,'Sim! ❤️',4);ev('💍 '+a.name+' e '+b.name+' se casaram!');rem(a,'Casei com '+b.name);rem(b,'Casei com '+a.name);
+if(a.ad&&b.ad&&!a.sp&&!b.sp&&a.sex!==b.sex&&!kin(a,b)&&a.aff[b.id]>=40&&b.aff[a.id]>=40){a.sp=b;b.sp=a;say(a,'Quer casar comigo? 💍',4);say(b,'Sim! ❤️',4);ev('💍 '+a.name+' e '+b.name+' se casaram!');rem(a,'Casei com '+b.name);rem(b,'Casei com '+a.name);
 if(!a.home&&b.home)a.home=b.home;else if(a.home)b.home=a.home;if(a.home)a.home.o=[a,b]}}
 function wander(a,dt){a.wt-=dt;if(!a.goal||a.wt<=0){a.goal=spot();a.wt=rnd(3,7)}if(go(a,a.goal.x,a.goal.y,dt,5))a.wt=0}
 function placesOf(a){const P=[{nome:'o lago',x:lake.x+95,y:lake.y-30},{nome:'o centro do vilarejo',x:W/2,y:H/2},{nome:'os arbustos',x:pick(bush).x,y:pick(bush).y},{nome:'a floresta',x:pick(tree).x,y:pick(tree).y},{nome:'a região norte',x:rnd(150,750),y:60},{nome:'a região sul',x:rnd(300,800),y:H-40},{nome:'a região leste',x:W-50,y:rnd(100,500)},{nome:'a região oeste',x:40,y:rnd(80,300)}];
@@ -85,7 +86,7 @@ if(school)P.push({nome:'a escola',x:school.x,y:school.y+34});for(const s of shop
 for(const h of house)if(h.o[0]&&!h.o.includes(a))P.push({nome:'a casa de '+h.o[0].name,x:h.x,y:h.y+18});return P}
 function inviteOk(b,a){const p=.6+((b.aff[a.id]||0)>=20?.25:0)-(b.tr.includes('tímido')?.2:0)+(b.tr.includes('curioso')?.15:0)-(b.food<40||b.water<40||b.energy<30?.4:0);return Math.random()<p}
 function setPlan(a,p){a.plan={l:rnd(4,7),to:60,w:0,...p};a.cd=0;if(p.k==='ir'&&!a.say)say(a,'Vou para '+p.nome,2.5)}
-function heur(a,pl,oth){const fr=[...oth].sort((p,q)=>(a.aff[q.id]||0)-(a.aff[p.id]||0))[0],r=Math.random(),sh=a.tr.includes('tímido');
+function heur(a,pl,oth){const sc=o=>(a.aff[o.id]||0)+(a.ad&&o.ad&&!a.sp&&!o.sp&&a.sex!==o.sex&&!kin(a,o)?20:0),fr=[...oth].sort((p,q)=>sc(q)-sc(p))[0],r=Math.random(),sh=a.tr.includes('tímido');
 if(fr&&r<(sh?.2:.45))return r<(sh?.1:.2)?{k:'visitar',who:fr}:{k:'convidar',who:fr,dest:pick(pl)};
 const pref=a.tr.includes('sonhador')?pl.filter(p=>p.nome=='o lago'):a.tr.includes('ambicioso')?pl.filter(p=>/loja|escola|centro/.test(p.nome)):(a.tr.includes('curioso')||a.tr.includes('corajoso'))?pl.filter(p=>/região/.test(p.nome)):[];
 return{k:'ir',...pick(pref.length&&Math.random()<.6?pref:pl)}}
@@ -101,7 +102,7 @@ function idle(a,dt){const p=a.plan;
 if(!p){if(a.thk){a.act='pensando';return}a.cd-=dt;if(a.cd>0){a.act='descansando';return}decide(a);return}
 p.to-=dt;if(p.to<=0||(p.who&&!ag.includes(p.who))){a.plan=null;a.cd=rnd(2,4);return}
 if(p.k==='ir'||p.k==='juntos'){a.act=(p.k==='juntos'?'explorando com '+p.who.name+': ':'indo para ')+p.nome;
-if(go(a,p.x+(a.id%3-1)*10,p.y+(a.id%2)*8,dt,6)){a.act='explorando '+p.nome;p.l-=dt;if(p.l<=0){if(p.k==='juntos'){a.aff[p.who.id]=(a.aff[p.who.id]||0)+10;a.social=Math.min(100,a.social+25);rem(a,'Explorei '+p.nome+' com '+p.who.name);say(a,pick(['Foi divertido! 😄','Que passeio bom!','Adorei explorar juntos!']),3)}else rem(a,'Fui até '+p.nome);a.plan=null;a.cd=rnd(3,7)}}return}
+if(go(a,p.x+(a.id%3-1)*10,p.y+(a.id%2)*8,dt,6)){a.act='explorando '+p.nome;p.l-=dt;if(p.l<=0){if(p.k==='juntos'){a.aff[p.who.id]=(a.aff[p.who.id]||0)+10;tryMarry(a,p.who);a.social=Math.min(100,a.social+25);rem(a,'Explorei '+p.nome+' com '+p.who.name);say(a,pick(['Foi divertido! 😄','Que passeio bom!','Adorei explorar juntos!']),3)}else rem(a,'Fui até '+p.nome);a.plan=null;a.cd=rnd(3,7)}}return}
 a.act=(p.dest?'convidando ':'visitando ')+p.who.name;
 if(go(a,p.who.x,p.who.y,dt,20)){if(!p.who.tk&&!p.who.sl&&!p.who.bd){a.plan=null;talk(a,p.who,p.dest)}else{p.w+=dt;if(p.w>10){a.plan=null;a.cd=3}}}}
 function think(a,dt){const ad=a.age>=16;
@@ -124,13 +125,13 @@ else{let x=a.x+rnd(-20,20),y=a.y+rnd(-20,20);if(!ok(x,y)){x=a.x+60;y=a.y}const t
 else if(a.age>=6&&a.age<16&&school&&a.energy>30){a.act='indo à escola';if(go(a,school.x+(a.id%5-2)*9,school.y+26+(a.id%3)*6,dt,3)){a.act='estudando';a.learn=Math.min(40,a.learn+.8*dt)}}
 else if(ad&&a.home&&!school&&a.money>=50){let x,y,n=0;do{x=W/2+rnd(-120,120);y=H/2+rnd(-80,60)}while(!ok(x,y)&&n++<20);a.money-=50;school={x,y};ev('🏫 '+a.name+' construiu a escola!');rem(a,'Construí a escola do vilarejo');say(a,'Escola nova! 🏫',4)}
 else if(ad&&a.home&&!a.shop&&a.money>=20&&shops.length<Math.max(1,ag.length/4|0)){let x=a.home.x+rnd(30,50),y=a.home.y+rnd(-20,20);if(!ok(x,y)||x>W-30)x=a.home.x-40;const ty=a.tr.includes('brincalhão')&&a.money>=60?SH[2]:pick(SH.filter(t=>t.cost<=a.money));a.money-=ty.cost;a.shop={x:cl(x,30,W-30),y:cl(y,50,H-30),owner:a,t:ty};shops.push(a.shop);ev(ty.em+' '+a.name+' abriu: '+ty.nome);rem(a,'Abri minha loja: '+ty.nome);say(a,ty.nome+' aberta! '+ty.em,4)}
-else if(ad&&a.age<62&&a.home&&(a.money<70||!a.shop)){a.act='trabalhando';if(!a.wp)a.wp=spot();if(go(a,a.wp.x,a.wp.y,dt,5)){a.wk+=dt;if(a.wk>=6){a.money+=20*(1+iqe(a)/100);a.wk=0;a.wp=null;say(a,'Recebi 💰',2)}}}
+else if(ad&&a.age<62&&a.home&&a.wcd<=0&&(a.money<70||!a.shop)){a.act='trabalhando';if(!a.wp)a.wp=spot();if(go(a,a.wp.x,a.wp.y,dt,5)){a.wk+=dt;if(a.wk>=6){a.money+=20*(1+iqe(a)/100);a.wk=0;a.wp=null;a.wcd=rnd(12,22);say(a,'Recebi 💰',2)}}}
 else{if(!ad){const p=ag.find(o=>a.par.includes(o.id));if(p){a.act='com os pais';if(dist(a,p)>50)go(a,p.x,p.y,dt,40);return}}idle(a,dt)}}
 function step(dt){T+=dt;
 for(const a of ag){a.mv=0;a.age+=dt/25;const k=a.sl?.4:1;a.food=Math.max(0,a.food-1.5*dt*k);a.water=Math.max(0,a.water-2*dt*k);if(!a.sl)a.energy=Math.max(0,a.energy-.9*dt);if(!a.tk)a.social=Math.max(0,a.social-.8*dt);
-a.sayT-=dt;a.thT-=dt;if(a.sayT<=0)a.say='';think(a,dt);
+a.sayT-=dt;a.thT-=dt;a.wcd-=dt;if(a.sayT<=0)a.say='';think(a,dt);
 if(Math.hypot(a.x-lake.x,a.y-lake.y)<lake.r+3&&a.act!=='bebendo'){const an=Math.atan2(a.y-lake.y,a.x-lake.x);a.x=lake.x+Math.cos(an)*(lake.r+4);a.y=lake.y+Math.sin(an)*(lake.r+4)}
-if(a.sex&&a.sp&&a.age<46&&a.sp.sex===0){a.bcd-=dt;if(a.bcd<=0&&a.kids<4&&a.food>45&&a.water>45){a.bcd=rnd(30,50);a.kids++;a.sp.kids++;const h=a.home||a,c=mk(Math.random()<.5?1:0,0,h.x,h.y+16,[a,a.sp]);c.home=a.home;S.b++;ev('👶 '+c.name+' nasceu (filho(a) de '+a.name+' e '+a.sp.name+')');rem(a,'Tive um filho: '+c.name);rem(a.sp,'Tive um filho: '+c.name);say(a,'É '+(c.sex?'uma menina':'um menino')+'! 👶',4)}}}
+if(a.sex&&a.sp&&a.age<46&&a.sp.sex===0){a.bcd-=dt;if(a.bcd<=0&&a.kids<4&&a.food>45&&a.water>45){a.bcd=rnd(20,35);a.kids++;a.sp.kids++;const h=a.home||a,c=mk(Math.random()<.5?1:0,0,h.x,h.y+16,[a,a.sp]);c.home=a.home;S.b++;ev('👶 '+c.name+' nasceu (filho(a) de '+a.name+' e '+a.sp.name+')');rem(a,'Tive um filho: '+c.name);rem(a.sp,'Tive um filho: '+c.name);say(a,'É '+(c.sex?'uma menina':'um menino')+'! 👶',4)}}}
 for(const b of bush)b.f=Math.min(6,b.f+.15*dt);for(const t of tree)t.w=Math.min(6,t.w+.08*dt);
 for(let i=ag.length-1;i>=0;i--){const a=ag[i];if(a.age>68&&Math.random()<(a.age-68)*.0012*dt||a.age>95){ag.splice(i,1);S.d++;const sp=a.sp;if(sp){sp.sp=null;say(sp,'Que saudade... 😢',5);rem(sp,'Perdi meu(minha) esposo(a) '+a.name)}if(sel===a)sel=null;ev('🕊 '+a.name+' morreu de velhice aos '+(a.age|0)+' anos');
 if(a.shop){if(sp&&!sp.shop){sp.shop=a.shop;a.shop.owner=sp}else shops.splice(shops.indexOf(a.shop),1)}for(const h of house)h.o=h.o.filter(o=>o!==a)}}
